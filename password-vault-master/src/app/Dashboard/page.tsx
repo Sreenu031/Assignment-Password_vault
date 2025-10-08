@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -9,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Eye, EyeOff, Edit, Trash2, Plus, Copy } from "lucide-react";
+import { Eye, EyeOff, Edit, Trash2, Plus, Copy, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import AddPasswordDialog from "@/components/AddPasswordDialog";
@@ -37,6 +38,7 @@ interface EncryptedPasswordItem {
 
 export default function Dashboard() {
   const [passwords, setPasswords] = useState<PasswordItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(
     () => new Set()
   );
@@ -47,6 +49,20 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const abortRef = useRef<AbortController | null>(null);
+
+  // Filter passwords based on search query
+  const filteredPasswords = useMemo(() => {
+    if (!searchQuery.trim()) return passwords;
+
+    return passwords.filter((password) =>
+      password.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [passwords, searchQuery]);
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery("");
+  };
 
   // -- Crypto helpers for all fields
   function getSecretKey() {
@@ -172,7 +188,7 @@ export default function Dashboard() {
       }
 
       const data = await res.json();
-      
+
       // Decrypt all received items for display
       const decryptedPasswords = (data.passwords || []).map(
         (encryptedItem: EncryptedPasswordItem) =>
@@ -281,7 +297,7 @@ export default function Dashboard() {
       }
 
       const data = await res.json();
-      
+
       // Decrypt the returned item for local state
       const decryptedItem = decryptPasswordItem(data.password, secret);
       setPasswords((prev) => [...prev, decryptedItem]);
@@ -375,35 +391,81 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      {passwords.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="mx-auto h-24 w-24 text-muted-foreground mb-4">
-            <svg
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              className="w-full h-full"
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Input
+            type="text"
+            placeholder="Search by title..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 pr-10"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearSearch}
+              className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1}
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium mb-2">No passwords yet</h3>
-          <p className="text-muted-foreground mb-4">
-            Get started by adding your first password
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+        {searchQuery && (
+          <p className="text-sm text-muted-foreground mt-2">
+            {filteredPasswords.length} result(s) found for "{searchQuery}"
           </p>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Your First Password
-          </Button>
+        )}
+      </div>
+
+      {filteredPasswords.length === 0 ? (
+        <div className="text-center py-12">
+          {searchQuery ? (
+            // No search results
+            <div>
+              <Search className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">No passwords found</h3>
+              <p className="text-muted-foreground mb-4">
+                No passwords match your search for "{searchQuery}"
+              </p>
+              <Button variant="outline" onClick={clearSearch}>
+                Clear Search
+              </Button>
+            </div>
+          ) : (
+            // No passwords at all
+            <div>
+              <div className="mx-auto h-24 w-24 text-muted-foreground mb-4">
+                <svg
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  className="w-full h-full"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium mb-2">No passwords yet</h3>
+              <p className="text-muted-foreground mb-4">
+                Get started by adding your first password
+              </p>
+              <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Add Your First Password
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {passwords.map((password) => {
+          {filteredPasswords.map((password) => {
             const isVisible = visiblePasswords.has(password.id);
 
             return (
